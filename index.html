@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>sspg-save</title>
+<script>
+/* 소스파가 용병단 저장 중계 — 게임(itch) 주소가 업로드마다 바뀌어도 저장이 이 고정 주소에 남게 함
+   받는 말: { sspg: 1, id, op: 'all' | 'set' | 'del', k, v }  ·  돌려주는 말: { sspg: 1, id, ok, data }
+   itch 주소에서 온 말만 받음 · 키는 sspg1: 로 시작하는 것만 다룸 · 저장 내용은 각자 브라우저에만 있음 */
+(function () {
+  var P = 'sspg1:', MAX = 4 * 1024 * 1024;
+  var OK = /^https:\/\/([a-z0-9-]+\.)*itch\.(zone|io)$/i, DEV = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+  var ST = null; try { ST = window.localStorage; ST.getItem(P + 'x'); } catch (e) { ST = null; }
+  function all() { var o = {}; for (var i = 0; i < ST.length; i++) { var k = ST.key(i); if (k && k.indexOf(P) === 0) o[k.slice(P.length)] = ST.getItem(k); } return o; }
+  window.addEventListener('message', function (e) {
+    if (!OK.test(e.origin) && !DEV.test(e.origin)) return;
+    var m = e.data; if (!m || m.sspg !== 1 || typeof m.op !== 'string') return;
+    var r = { sspg: 1, id: m.id, ok: false };
+    try {
+      if (!ST) throw new Error('nostore');
+      if (m.op === 'all') { r.data = all(); r.ok = true; }
+      else if (m.op === 'set' && typeof m.k === 'string' && typeof m.v === 'string' && m.v.length < MAX) { ST.setItem(P + m.k, m.v); r.ok = true; }
+      else if (m.op === 'del' && typeof m.k === 'string') { ST.removeItem(P + m.k); r.ok = true; }
+      else if (m.op === 'many' && m.d && typeof m.d === 'object') { for (var k in m.d) { if (typeof m.d[k] === 'string' && m.d[k].length < MAX) ST.setItem(P + k, m.d[k]); } r.ok = true; }
+    } catch (err) { r.err = String(err && err.message || err); }
+    try { e.source.postMessage(r, e.origin); } catch (err) {}
+  });
+  try { parent.postMessage({ sspg: 1, ready: !!ST }, '*'); } catch (e) {}
+})();
+</script>
